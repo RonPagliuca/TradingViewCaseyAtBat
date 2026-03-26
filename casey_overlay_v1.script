@@ -1,0 +1,274 @@
+//@version=6
+indicator("Casey Clean Overlay FINAL", overlay=true, max_lines_count=100, max_labels_count=500)
+
+//====================================================
+// Inputs
+//====================================================
+showEMA13       = input.bool(true, "EMA 13")
+showEMA48       = input.bool(true, "EMA 48")
+showEMA200      = input.bool(true, "EMA 200")
+showVWAP        = input.bool(true, "VWAP")
+
+showPDH         = input.bool(true, "PDH")
+showPDL         = input.bool(true, "PDL")
+showPMH         = input.bool(true, "PMH")
+showPML         = input.bool(true, "PML")
+
+showSignals     = input.bool(true, "Signals")
+showRightLabels = input.bool(true, "Right Edge Labels")
+showReasons     = input.bool(true, "Hover Reasons")
+
+premarketSession = input.session("0400-0930", "Premarket Session")
+
+//====================================================
+// Colors
+//====================================================
+colPD   = color.blue
+colPM   = color.orange
+colCall = color.lime
+colPut  = color.red
+
+//====================================================
+// Technicals
+//====================================================
+ema13   = ta.ema(close, 13)
+ema48   = ta.ema(close, 48)
+ema200  = ta.ema(close, 200)
+vwapVal = ta.vwap(hlc3)
+
+plot(showEMA13  ? ema13   : na, title="EMA 13",  color=color.yellow, linewidth=2, display=display.all)
+plot(showEMA48  ? ema48   : na, title="EMA 48",  color=color.purple, linewidth=2, display=display.all)
+plot(showEMA200 ? ema200  : na, title="EMA 200", color=color.red, linewidth=2, display=display.all)
+plot(showVWAP   ? vwapVal : na, title="VWAP",    color=color.aqua, linewidth=2, display=display.all)
+
+//====================================================
+// Day logic
+//====================================================
+newDay      = ta.change(time("D")) != 0
+inPremarket = not na(time(timeframe.period, premarketSession))
+
+var int dayStartBar = na
+if na(dayStartBar) or newDay
+    dayStartBar := bar_index
+
+//====================================================
+// Previous-day levels used on current day
+//====================================================
+pdh = request.security(syminfo.tickerid, "D", high[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+pdl = request.security(syminfo.tickerid, "D", low[1],  gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+//====================================================
+// Current-day premarket levels
+//====================================================
+var float pmh = na
+var float pml = na
+
+if newDay
+    pmh := na
+    pml := na
+
+if inPremarket
+    pmh := na(pmh) ? high : math.max(pmh, high)
+    pml := na(pml) ? low  : math.min(pml, low)
+else
+    pmh := nz(pmh[1])
+    pml := nz(pml[1])
+
+//====================================================
+// Flat horizontal lines for current day only
+//====================================================
+var line linePDH = na
+var line linePDL = na
+var line linePMH = na
+var line linePML = na
+
+if newDay
+    if not na(linePDH)
+        line.delete(linePDH)
+    if not na(linePDL)
+        line.delete(linePDL)
+    if not na(linePMH)
+        line.delete(linePMH)
+    if not na(linePML)
+        line.delete(linePML)
+    linePDH := na
+    linePDL := na
+    linePMH := na
+    linePML := na
+
+if showPDH and not na(pdh)
+    if na(linePDH)
+        linePDH := line.new(dayStartBar, pdh, bar_index, pdh, xloc=xloc.bar_index, extend=extend.none, color=colPD, width=2)
+    else
+        line.set_xy1(linePDH, dayStartBar, pdh)
+        line.set_xy2(linePDH, bar_index, pdh)
+
+if showPDL and not na(pdl)
+    if na(linePDL)
+        linePDL := line.new(dayStartBar, pdl, bar_index, pdl, xloc=xloc.bar_index, extend=extend.none, color=colPD, width=2)
+    else
+        line.set_xy1(linePDL, dayStartBar, pdl)
+        line.set_xy2(linePDL, bar_index, pdl)
+
+if showPMH and not na(pmh)
+    if na(linePMH)
+        linePMH := line.new(dayStartBar, pmh, bar_index, pmh, xloc=xloc.bar_index, extend=extend.none, color=colPM, width=2, style=line.style_dashed)
+    else
+        line.set_xy1(linePMH, dayStartBar, pmh)
+        line.set_xy2(linePMH, bar_index, pmh)
+
+if showPML and not na(pml)
+    if na(linePML)
+        linePML := line.new(dayStartBar, pml, bar_index, pml, xloc=xloc.bar_index, extend=extend.none, color=colPM, width=2, style=line.style_dashed)
+    else
+        line.set_xy1(linePML, dayStartBar, pml)
+        line.set_xy2(linePML, bar_index, pml)
+
+//====================================================
+// Persistent far-right labels
+//====================================================
+var label lblPDH = na
+var label lblPDL = na
+var label lblPMH = na
+var label lblPML = na
+
+if newDay
+    if not na(lblPDH)
+        label.delete(lblPDH)
+    if not na(lblPDL)
+        label.delete(lblPDL)
+    if not na(lblPMH)
+        label.delete(lblPMH)
+    if not na(lblPML)
+        label.delete(lblPML)
+    lblPDH := na
+    lblPDL := na
+    lblPMH := na
+    lblPML := na
+
+rightX = bar_index + 2
+
+if showRightLabels
+    if showPDH and not na(pdh)
+        if na(lblPDH)
+            lblPDH := label.new(rightX, pdh, "PDH", xloc=xloc.bar_index, style=label.style_label_left, color=colPD, textcolor=color.white, size=size.tiny)
+        else
+            label.set_x(lblPDH, rightX)
+            label.set_y(lblPDH, pdh)
+            label.set_text(lblPDH, "PDH")
+            label.set_color(lblPDH, colPD)
+
+    if showPDL and not na(pdl)
+        if na(lblPDL)
+            lblPDL := label.new(rightX, pdl, "PDL", xloc=xloc.bar_index, style=label.style_label_left, color=colPD, textcolor=color.white, size=size.tiny)
+        else
+            label.set_x(lblPDL, rightX)
+            label.set_y(lblPDL, pdl)
+            label.set_text(lblPDL, "PDL")
+            label.set_color(lblPDL, colPD)
+
+    if showPMH and not na(pmh)
+        if na(lblPMH)
+            lblPMH := label.new(rightX, pmh, "PMH", xloc=xloc.bar_index, style=label.style_label_left, color=colPM, textcolor=color.white, size=size.tiny)
+        else
+            label.set_x(lblPMH, rightX)
+            label.set_y(lblPMH, pmh)
+            label.set_text(lblPMH, "PMH")
+            label.set_color(lblPMH, colPM)
+
+    if showPML and not na(pml)
+        if na(lblPML)
+            lblPML := label.new(rightX, pml, "PML", xloc=xloc.bar_index, style=label.style_label_left, color=colPM, textcolor=color.white, size=size.tiny)
+        else
+            label.set_x(lblPML, rightX)
+            label.set_y(lblPML, pml)
+            label.set_text(lblPML, "PML")
+            label.set_color(lblPML, colPM)
+
+//====================================================
+// Status-line values
+//====================================================
+plot(showPDH ? pdh : na, "PDH", color=color.new(colPD, 100), display=display.status_line)
+plot(showPDL ? pdl : na, "PDL", color=color.new(colPD, 100), display=display.status_line)
+plot(showPMH ? pmh : na, "PMH", color=color.new(colPM, 100), display=display.status_line)
+plot(showPML ? pml : na, "PML", color=color.new(colPM, 100), display=display.status_line)
+
+//====================================================
+// Casey-style logic
+//====================================================
+bullEMA = ema13 > ema48 and ema48 > ema200
+bearEMA = ema200 > ema48 and ema48 > ema13
+
+breakPDH  = not na(pdh) and close > pdh and close[1] <= pdh
+bouncePDL = not na(pdl) and low <= pdl and close > pdl
+rejectPDH = not na(pdh) and high >= pdh and close < pdh
+breakPDL  = not na(pdl) and close < pdl and close[1] >= pdl
+
+breakPMH = not na(pmh) and close > pmh and close[1] <= pmh
+breakPML = not na(pml) and close < pml and close[1] >= pml
+
+emaCall = low <= ema13 and close > ema13
+emaPut  = high >= ema13 and close < ema13
+
+call = bullEMA and close > vwapVal and (breakPDH or bouncePDL or breakPMH or emaCall)
+put  = bearEMA and close < vwapVal and (rejectPDH or breakPDL or breakPML or emaPut)
+
+freshCall = showSignals and call and not call[1]
+freshPut  = showSignals and put and not put[1]
+
+//====================================================
+// Thin arrows
+//====================================================
+plotshape(freshCall, title="CALL", style=shape.triangleup, location=location.belowbar, color=colCall, size=size.tiny)
+plotshape(freshPut,  title="PUT",  style=shape.triangledown, location=location.abovebar, color=colPut, size=size.tiny)
+
+//====================================================
+// Hover targets: hover the ? marker, not the arrow
+//====================================================
+if freshCall and showReasons
+    string reason = (
+         breakPDH ? "CALL: PDH breakout + bullish EMA + above VWAP" :
+         bouncePDL ? "CALL: PDL bounce + bullish EMA + above VWAP" :
+         breakPMH ? "CALL: PMH breakout (secondary level)" :
+         emaCall ? "CALL: EMA13 pullback continuation" :
+         "CALL setup"
+    )
+    label.new(
+         bar_index,
+         low - syminfo.mintick * 12,
+         "?",
+         xloc=xloc.bar_index,
+         yloc=yloc.price,
+         style=label.style_label_up,
+         color=color.new(colCall, 20),
+         textcolor=color.black,
+         size=size.normal,
+         tooltip=reason
+    )
+
+if freshPut and showReasons
+    string reason = (
+         rejectPDH ? "PUT: PDH rejection + bearish EMA + below VWAP" :
+         breakPDL ? "PUT: PDL breakdown + bearish EMA + below VWAP" :
+         breakPML ? "PUT: PML breakdown (secondary level)" :
+         emaPut ? "PUT: EMA13 rejection continuation" :
+         "PUT setup"
+    )
+    label.new(
+         bar_index,
+         high + syminfo.mintick * 12,
+         "?",
+         xloc=xloc.bar_index,
+         yloc=yloc.price,
+         style=label.style_label_down,
+         color=color.new(colPut, 20),
+         textcolor=color.white,
+         size=size.normal,
+         tooltip=reason
+    )
+
+//====================================================
+// Alerts
+//====================================================
+alertcondition(freshCall, title="Call Setup", message="Casey-style call setup")
+alertcondition(freshPut,  title="Put Setup",  message="Casey-style put setup")
