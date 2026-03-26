@@ -2,6 +2,9 @@
 
 A clean, professional TradingView indicator inspired by Casey-style intraday trading.
 
+<img width="2477" height="1154" alt="image" src="https://github.com/user-attachments/assets/ed25442f-024f-4cbb-9bae-cdf68334d1d1" />
+
+
 This script focuses on:
 - **Key price levels (PDH / PDL / PMH / PML)**
 - **Trend structure (EMA 13 / 48 / 200)**
