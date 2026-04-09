@@ -1,86 +1,167 @@
 //@version=6
-indicator("Casey Clean Overlay FINAL", overlay=true, max_lines_count=100, max_labels_count=500)
+indicator("Tomasino Winnah Pickah", overlay=true, max_lines_count=200, max_labels_count=300)
 
 //====================================================
 // Inputs
 //====================================================
-showEMA13       = input.bool(true, "EMA 13")
-showEMA48       = input.bool(true, "EMA 48")
-showEMA200      = input.bool(true, "EMA 200")
-showVWAP        = input.bool(true, "VWAP")
+showEMA9          = input.bool(true,  "EMA 9", display=display.none)
+showEMA21         = input.bool(true,  "EMA 21", display=display.none)
+showEMA50         = input.bool(true,  "EMA 50", display=display.none)
+showEMA200        = input.bool(true,  "EMA 200", display=display.none)
+showVWAP          = input.bool(true,  "VWAP", display=display.none)
 
-showPDH         = input.bool(true, "PDH")
-showPDL         = input.bool(true, "PDL")
-showPMH         = input.bool(true, "PMH")
-showPML         = input.bool(true, "PML")
+showPDH           = input.bool(true,  "PDH", display=display.none)
+showPDL           = input.bool(true,  "PDL", display=display.none)
+showPMH           = input.bool(true,  "PMH", display=display.none)
+showPML           = input.bool(true,  "PML", display=display.none)
+showOR            = input.bool(true,  "Opening Range", display=display.none)
+showRightLabels   = input.bool(true,  "Right Labels", display=display.none)
 
-showSignals     = input.bool(true, "Signals")
-showRightLabels = input.bool(true, "Right Edge Labels")
-showReasons     = input.bool(true, "Hover Reasons")
+showSignals       = input.bool(true,  "Show Signals", display=display.none)
+showConfidence    = input.bool(true,  "Show Confidence", display=display.none)
+showReasons       = input.bool(true,  "Show Reasons", display=display.none)
 
-premarketSession = input.session("0400-0930", "Premarket Session")
+premarketSession  = input.session("0400-0930", "Premarket Session", display=display.none)
+rthSession        = input.session("0930-1600", "RTH Session", display=display.none)
+
+useTimeFilter     = input.bool(true,  "Use RTH Time Filter", display=display.none)
+entryWindow1      = input.session("0935-1130", "Entry Window 1", display=display.none)
+entryWindow2      = input.session("1330-1530", "Entry Window 2", display=display.none)
+
+atrLen            = input.int(14, "ATR Length", minval=1, display=display.none)
+volLen            = input.int(20, "Volume SMA Length", minval=1, display=display.none)
+orBars            = input.int(5, "Opening Range Bars", minval=3, maxval=15, display=display.none)
+
+nearLevelATR      = input.float(0.18, "Near Level ATR", step=0.01, display=display.none)
+nearEMAATR        = input.float(0.16, "Near EMA ATR", step=0.01, display=display.none)
+maxChaseATR       = input.float(0.45, "Max Chase ATR", step=0.01, display=display.none)
+
+requireVolume     = input.bool(false, "Require Volume Expansion", display=display.none)
+requireTrend      = input.bool(true,  "Require Trend Alignment", display=display.none)
+useExtensionBlock = input.bool(true,  "Block Extended Chase Entries", display=display.none)
+cooldownBars      = input.int(3, "Cooldown Bars", minval=1, maxval=20, display=display.none)
+
+confidenceOffset  = input.float(0.20, "Confidence Offset ATR", step=0.01, display=display.none)
+reasonOffsetATR   = input.float(0.38, "Reason Offset ATR", step=0.01, display=display.none)
 
 //====================================================
-// Colors
+// Core
 //====================================================
-colPD   = color.blue
-colPM   = color.orange
-colCall = color.lime
-colPut  = color.red
-
-//====================================================
-// Technicals
-//====================================================
-ema13   = ta.ema(close, 13)
-ema48   = ta.ema(close, 48)
+ema9    = ta.ema(close, 9)
+ema21   = ta.ema(close, 21)
+ema50   = ta.ema(close, 50)
 ema200  = ta.ema(close, 200)
 vwapVal = ta.vwap(hlc3)
+atrVal  = ta.atr(atrLen)
+volSma  = ta.sma(volume, volLen)
 
-plot(showEMA13  ? ema13   : na, title="EMA 13",  color=color.yellow, linewidth=2, display=display.all)
-plot(showEMA48  ? ema48   : na, title="EMA 48",  color=color.purple, linewidth=2, display=display.all)
-plot(showEMA200 ? ema200  : na, title="EMA 200", color=color.red, linewidth=2, display=display.all)
-plot(showVWAP   ? vwapVal : na, title="VWAP",    color=color.aqua, linewidth=2, display=display.all)
+rangeNow   = high - low
+bodySize   = math.abs(close - open)
+upperWick  = high - math.max(open, close)
+lowerWick  = math.min(open, close) - low
+
+bullRejectBar   = lowerWick > bodySize * 0.8 and close > open
+bearRejectBar   = upperWick > bodySize * 0.8 and close < open
+bullCloseStrong = close > open and close >= high - (rangeNow * 0.30)
+bearCloseStrong = close < open and close <= low + (rangeNow * 0.30)
+higherLowBar    = low > low[1]
+lowerHighBar    = high < high[1]
+volumePass      = requireVolume ? (volume > volSma) : true
+
+plot(showEMA9   ? ema9   : na, "EMA 9",   color=color.yellow, linewidth=2)
+plot(showEMA21  ? ema21  : na, "EMA 21",  color=color.orange, linewidth=2)
+plot(showEMA50  ? ema50  : na, "EMA 50",  color=color.purple, linewidth=2)
+plot(showEMA200 ? ema200 : na, "EMA 200", color=color.red, linewidth=2)
+plot(showVWAP   ? vwapVal: na, "VWAP",    color=color.aqua, linewidth=2)
 
 //====================================================
-// Day logic
+// Session state
 //====================================================
-newDay      = ta.change(time("D")) != 0
-inPremarket = not na(time(timeframe.period, premarketSession))
+newDay       = ta.change(time("D")) != 0
+inRTH        = not na(time(timeframe.period, rthSession))
+newRTH       = inRTH and not inRTH[1]
+inWin1       = not na(time(timeframe.period, entryWindow1))
+inWin2       = not na(time(timeframe.period, entryWindow2))
+timePass     = useTimeFilter ? (inWin1 or inWin2) : inRTH
 
-var int dayStartBar = na
-if na(dayStartBar) or newDay
-    dayStartBar := bar_index
-
-//====================================================
-// Previous-day levels used on current day
-//====================================================
-pdh = request.security(syminfo.tickerid, "D", high[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
-pdl = request.security(syminfo.tickerid, "D", low[1],  gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+sessionStart = timestamp(syminfo.timezone, year, month, dayofmonth, 4, 0)
+rthOpen      = timestamp(syminfo.timezone, year, month, dayofmonth, 9, 30)
+sessionEnd   = timestamp(syminfo.timezone, year, month, dayofmonth, 16, 0)
 
 //====================================================
-// Current-day premarket levels
+// Tickers
 //====================================================
-var float pmh = na
-var float pml = na
+rthTicker = ticker.new(syminfo.prefix, syminfo.ticker, session.regular)
+ethTicker = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
+
+//====================================================
+// PMH/PML helpers
+//====================================================
+f_pmh(_pmSession) =>
+    var float _pmh = na
+    _newDay = ta.change(time("D")) != 0
+    _inPM   = not na(time(timeframe.period, _pmSession))
+    if _newDay
+        _pmh := na
+    if _inPM
+        _pmh := na(_pmh) ? high : math.max(_pmh, high)
+    else
+        _pmh := nz(_pmh[1])
+    _pmh
+
+f_pml(_pmSession) =>
+    var float _pml = na
+    _newDay = ta.change(time("D")) != 0
+    _inPM   = not na(time(timeframe.period, _pmSession))
+    if _newDay
+        _pml := na
+    if _inPM
+        _pml := na(_pml) ? low : math.min(_pml, low)
+    else
+        _pml := nz(_pml[1])
+    _pml
+
+//====================================================
+// Levels
+//====================================================
+pdh = request.security(rthTicker, "D", high[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+pdl = request.security(rthTicker, "D", low[1],  gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+pmh = request.security(ethTicker, timeframe.period, f_pmh(premarketSession), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+pml = request.security(ethTicker, timeframe.period, f_pml(premarketSession), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+//====================================================
+// Opening Range
+//====================================================
+var float orHigh = na
+var float orLow  = na
+var int orCount  = 0
 
 if newDay
-    pmh := na
-    pml := na
+    orHigh  := na
+    orLow   := na
+    orCount := 0
 
-if inPremarket
-    pmh := na(pmh) ? high : math.max(pmh, high)
-    pml := na(pml) ? low  : math.min(pml, low)
-else
-    pmh := nz(pmh[1])
-    pml := nz(pml[1])
+if newRTH
+    orHigh  := high
+    orLow   := low
+    orCount := 1
+else if inRTH and orCount > 0 and orCount < orBars
+    orHigh  := math.max(orHigh, high)
+    orLow   := math.min(orLow, low)
+    orCount += 1
+
+orReady = orCount >= orBars
 
 //====================================================
-// Flat horizontal lines for current day only
+// Draw lines
 //====================================================
 var line linePDH = na
 var line linePDL = na
 var line linePMH = na
 var line linePML = na
+var line lineORH = na
+var line lineORL = na
 
 if newDay
     if not na(linePDH)
@@ -91,46 +172,62 @@ if newDay
         line.delete(linePMH)
     if not na(linePML)
         line.delete(linePML)
+    if not na(lineORH)
+        line.delete(lineORH)
+    if not na(lineORL)
+        line.delete(lineORL)
     linePDH := na
     linePDL := na
     linePMH := na
     linePML := na
+    lineORH := na
+    lineORL := na
 
 if showPDH and not na(pdh)
     if na(linePDH)
-        linePDH := line.new(dayStartBar, pdh, bar_index, pdh, xloc=xloc.bar_index, extend=extend.none, color=colPD, width=2)
+        linePDH := line.new(sessionStart, pdh, sessionEnd, pdh, xloc=xloc.bar_time, color=color.blue, width=2)
     else
-        line.set_xy1(linePDH, dayStartBar, pdh)
-        line.set_xy2(linePDH, bar_index, pdh)
+        line.set_xy1(linePDH, sessionStart, pdh), line.set_xy2(linePDH, sessionEnd, pdh)
 
 if showPDL and not na(pdl)
     if na(linePDL)
-        linePDL := line.new(dayStartBar, pdl, bar_index, pdl, xloc=xloc.bar_index, extend=extend.none, color=colPD, width=2)
+        linePDL := line.new(sessionStart, pdl, sessionEnd, pdl, xloc=xloc.bar_time, color=color.blue, width=2)
     else
-        line.set_xy1(linePDL, dayStartBar, pdl)
-        line.set_xy2(linePDL, bar_index, pdl)
+        line.set_xy1(linePDL, sessionStart, pdl), line.set_xy2(linePDL, sessionEnd, pdl)
 
 if showPMH and not na(pmh)
     if na(linePMH)
-        linePMH := line.new(dayStartBar, pmh, bar_index, pmh, xloc=xloc.bar_index, extend=extend.none, color=colPM, width=2, style=line.style_dashed)
+        linePMH := line.new(sessionStart, pmh, sessionEnd, pmh, xloc=xloc.bar_time, color=color.orange, width=2, style=line.style_dashed)
     else
-        line.set_xy1(linePMH, dayStartBar, pmh)
-        line.set_xy2(linePMH, bar_index, pmh)
+        line.set_xy1(linePMH, sessionStart, pmh), line.set_xy2(linePMH, sessionEnd, pmh)
 
 if showPML and not na(pml)
     if na(linePML)
-        linePML := line.new(dayStartBar, pml, bar_index, pml, xloc=xloc.bar_index, extend=extend.none, color=colPM, width=2, style=line.style_dashed)
+        linePML := line.new(sessionStart, pml, sessionEnd, pml, xloc=xloc.bar_time, color=color.orange, width=2, style=line.style_dashed)
     else
-        line.set_xy1(linePML, dayStartBar, pml)
-        line.set_xy2(linePML, bar_index, pml)
+        line.set_xy1(linePML, sessionStart, pml), line.set_xy2(linePML, sessionEnd, pml)
+
+if showOR and orReady and not na(orHigh)
+    if na(lineORH)
+        lineORH := line.new(rthOpen, orHigh, sessionEnd, orHigh, xloc=xloc.bar_time, color=color.fuchsia, width=1, style=line.style_dotted)
+    else
+        line.set_xy1(lineORH, rthOpen, orHigh), line.set_xy2(lineORH, sessionEnd, orHigh)
+
+if showOR and orReady and not na(orLow)
+    if na(lineORL)
+        lineORL := line.new(rthOpen, orLow, sessionEnd, orLow, xloc=xloc.bar_time, color=color.fuchsia, width=1, style=line.style_dotted)
+    else
+        line.set_xy1(lineORL, rthOpen, orLow), line.set_xy2(lineORL, sessionEnd, orLow)
 
 //====================================================
-// Persistent far-right labels
+// Right labels
 //====================================================
 var label lblPDH = na
 var label lblPDL = na
 var label lblPMH = na
 var label lblPML = na
+var label lblORH = na
+var label lblORL = na
 
 if newDay
     if not na(lblPDH)
@@ -141,134 +238,215 @@ if newDay
         label.delete(lblPMH)
     if not na(lblPML)
         label.delete(lblPML)
+    if not na(lblORH)
+        label.delete(lblORH)
+    if not na(lblORL)
+        label.delete(lblORL)
     lblPDH := na
     lblPDL := na
     lblPMH := na
     lblPML := na
+    lblORH := na
+    lblORL := na
 
 rightX = bar_index + 2
 
 if showRightLabels
     if showPDH and not na(pdh)
         if na(lblPDH)
-            lblPDH := label.new(rightX, pdh, "PDH", xloc=xloc.bar_index, style=label.style_label_left, color=colPD, textcolor=color.white, size=size.tiny)
+            lblPDH := label.new(rightX, pdh, "PDH", xloc=xloc.bar_index, style=label.style_label_left, color=color.blue, textcolor=color.white, size=size.tiny)
         else
-            label.set_x(lblPDH, rightX)
-            label.set_y(lblPDH, pdh)
-            label.set_text(lblPDH, "PDH")
-            label.set_color(lblPDH, colPD)
-
+            label.set_x(lblPDH, rightX), label.set_y(lblPDH, pdh), label.set_text(lblPDH, "PDH")
     if showPDL and not na(pdl)
         if na(lblPDL)
-            lblPDL := label.new(rightX, pdl, "PDL", xloc=xloc.bar_index, style=label.style_label_left, color=colPD, textcolor=color.white, size=size.tiny)
+            lblPDL := label.new(rightX, pdl, "PDL", xloc=xloc.bar_index, style=label.style_label_left, color=color.blue, textcolor=color.white, size=size.tiny)
         else
-            label.set_x(lblPDL, rightX)
-            label.set_y(lblPDL, pdl)
-            label.set_text(lblPDL, "PDL")
-            label.set_color(lblPDL, colPD)
-
+            label.set_x(lblPDL, rightX), label.set_y(lblPDL, pdl), label.set_text(lblPDL, "PDL")
     if showPMH and not na(pmh)
         if na(lblPMH)
-            lblPMH := label.new(rightX, pmh, "PMH", xloc=xloc.bar_index, style=label.style_label_left, color=colPM, textcolor=color.white, size=size.tiny)
+            lblPMH := label.new(rightX, pmh, "PMH", xloc=xloc.bar_index, style=label.style_label_left, color=color.orange, textcolor=color.white, size=size.tiny)
         else
-            label.set_x(lblPMH, rightX)
-            label.set_y(lblPMH, pmh)
-            label.set_text(lblPMH, "PMH")
-            label.set_color(lblPMH, colPM)
-
+            label.set_x(lblPMH, rightX), label.set_y(lblPMH, pmh), label.set_text(lblPMH, "PMH")
     if showPML and not na(pml)
         if na(lblPML)
-            lblPML := label.new(rightX, pml, "PML", xloc=xloc.bar_index, style=label.style_label_left, color=colPM, textcolor=color.white, size=size.tiny)
+            lblPML := label.new(rightX, pml, "PML", xloc=xloc.bar_index, style=label.style_label_left, color=color.orange, textcolor=color.white, size=size.tiny)
         else
-            label.set_x(lblPML, rightX)
-            label.set_y(lblPML, pml)
-            label.set_text(lblPML, "PML")
-            label.set_color(lblPML, colPM)
+            label.set_x(lblPML, rightX), label.set_y(lblPML, pml), label.set_text(lblPML, "PML")
+    if showOR and orReady and not na(orHigh)
+        if na(lblORH)
+            lblORH := label.new(rightX, orHigh, "ORH", xloc=xloc.bar_index, style=label.style_label_left, color=color.fuchsia, textcolor=color.white, size=size.tiny)
+        else
+            label.set_x(lblORH, rightX), label.set_y(lblORH, orHigh), label.set_text(lblORH, "ORH")
+    if showOR and orReady and not na(orLow)
+        if na(lblORL)
+            lblORL := label.new(rightX, orLow, "ORL", xloc=xloc.bar_index, style=label.style_label_left, color=color.fuchsia, textcolor=color.white, size=size.tiny)
+        else
+            label.set_x(lblORL, rightX), label.set_y(lblORL, orLow), label.set_text(lblORL, "ORL")
 
 //====================================================
-// Status-line values
+// Status line - only useful values
 //====================================================
-plot(showPDH ? pdh : na, "PDH", color=color.new(colPD, 100), display=display.status_line)
-plot(showPDL ? pdl : na, "PDL", color=color.new(colPD, 100), display=display.status_line)
-plot(showPMH ? pmh : na, "PMH", color=color.new(colPM, 100), display=display.status_line)
-plot(showPML ? pml : na, "PML", color=color.new(colPM, 100), display=display.status_line)
-
-//====================================================
-// Casey-style logic
-//====================================================
-bullEMA = ema13 > ema48 and ema48 > ema200
-bearEMA = ema200 > ema48 and ema48 > ema13
-
-breakPDH  = not na(pdh) and close > pdh and close[1] <= pdh
-bouncePDL = not na(pdl) and low <= pdl and close > pdl
-rejectPDH = not na(pdh) and high >= pdh and close < pdh
-breakPDL  = not na(pdl) and close < pdl and close[1] >= pdl
-
-breakPMH = not na(pmh) and close > pmh and close[1] <= pmh
-breakPML = not na(pml) and close < pml and close[1] >= pml
-
-emaCall = low <= ema13 and close > ema13
-emaPut  = high >= ema13 and close < ema13
-
-call = bullEMA and close > vwapVal and (breakPDH or bouncePDL or breakPMH or emaCall)
-put  = bearEMA and close < vwapVal and (rejectPDH or breakPDL or breakPML or emaPut)
-
-freshCall = showSignals and call and not call[1]
-freshPut  = showSignals and put and not put[1]
+plot(showPDH ? pdh : na, "PDH", color=color.new(color.blue, 100), display=display.status_line)
+plot(showPDL ? pdl : na, "PDL", color=color.new(color.blue, 100), display=display.status_line)
+plot(showPMH ? pmh : na, "PMH", color=color.new(color.orange, 100), display=display.status_line)
+plot(showPML ? pml : na, "PML", color=color.new(color.orange, 100), display=display.status_line)
 
 //====================================================
-// Thin arrows
+// Setup logic
 //====================================================
-plotshape(freshCall, title="CALL", style=shape.triangleup, location=location.belowbar, color=colCall, size=size.tiny)
-plotshape(freshPut,  title="PUT",  style=shape.triangledown, location=location.abovebar, color=colPut, size=size.tiny)
+bullTrend = ema9 > ema21 and ema21 > ema50 and close > ema50
+bearTrend = ema9 < ema21 and ema21 < ema50 and close < ema50
+
+bullSlope = ema9 > ema9[1] and ema21 > ema21[1]
+bearSlope = ema9 < ema9[1] and ema21 < ema21[1]
+
+trendPassCall = requireTrend ? (bullTrend and bullSlope) : true
+trendPassPut  = requireTrend ? (bearTrend and bearSlope) : true
+
+chaseCallBlocked = useExtensionBlock ? ((close - ema9) > atrVal * maxChaseATR) : false
+chasePutBlocked  = useExtensionBlock ? ((ema9 - close) > atrVal * maxChaseATR) : false
+
+nearEmaCall = math.abs(close - ema9) <= atrVal * nearEMAATR or math.abs(close - ema21) <= atrVal * nearEMAATR or math.abs(close - vwapVal) <= atrVal * nearEMAATR
+nearEmaPut  = nearEmaCall
 
 //====================================================
-// Hover targets: hover the ? marker, not the arrow
+// PM/PD/OR bounce / reclaim / reject / fail
 //====================================================
-if freshCall and showReasons
-    string reason = (
-         breakPDH ? "CALL: PDH breakout + bullish EMA + above VWAP" :
-         bouncePDL ? "CALL: PDL bounce + bullish EMA + above VWAP" :
-         breakPMH ? "CALL: PMH breakout (secondary level)" :
-         emaCall ? "CALL: EMA13 pullback continuation" :
-         "CALL setup"
-    )
+bouncePML = showPML and not na(pml) and low <= pml and close > pml
+bouncePDL = showPDL and not na(pdl) and low <= pdl and close > pdl
+bounceORL = showOR and orReady and low <= orLow and close > orLow
+
+rejectPMH = showPMH and not na(pmh) and high >= pmh and close < pmh
+rejectPDH = showPDH and not na(pdh) and high >= pdh and close < pdh
+rejectORH = showOR and orReady and high >= orHigh and close < orHigh
+
+reclaimPMH = showPMH and not na(pmh) and close > pmh and close[1] <= pmh
+reclaimPDH = showPDH and not na(pdh) and close > pdh and close[1] <= pdh
+losePML    = showPML and not na(pml) and close < pml and close[1] >= pml
+losePDL    = showPDL and not na(pdl) and close < pdl and close[1] >= pdl
+
+bullBounce = (bouncePML or bouncePDL or bounceORL) and bullRejectBar
+bearReject = (rejectPMH or rejectPDH or rejectORH) and bearRejectBar
+
+callPullback = trendPassCall and volumePass and nearEmaCall and higherLowBar and close > ema9 and bullCloseStrong and not chaseCallBlocked
+putPullback  = trendPassPut  and volumePass and nearEmaPut  and lowerHighBar and close < ema9 and bearCloseStrong and not chasePutBlocked
+
+callLevel = trendPassCall and volumePass and (bullBounce or reclaimPMH or reclaimPDH) and bullCloseStrong and not chaseCallBlocked
+putLevel  = trendPassPut  and volumePass and (bearReject or losePML or losePDL) and bearCloseStrong and not chasePutBlocked
+
+callSignalBase = (callPullback or callLevel) and timePass
+putSignalBase  = (putPullback or putLevel) and timePass
+
+//====================================================
+// Confidence
+//====================================================
+int callConfidence = 0
+callConfidence += trendPassCall ? 1 : 0
+callConfidence += volumePass ? 1 : 0
+callConfidence += bullCloseStrong ? 1 : 0
+callConfidence += not chaseCallBlocked ? 1 : 0
+callConfidence += nearEmaCall ? 1 : 0
+callConfidence += callLevel ? 2 : 0
+callConfidence += bullBounce ? 1 : 0
+callConfidence += (reclaimPMH or reclaimPDH) ? 1 : 0
+
+int putConfidence = 0
+putConfidence += trendPassPut ? 1 : 0
+putConfidence += volumePass ? 1 : 0
+putConfidence += bearCloseStrong ? 1 : 0
+putConfidence += not chasePutBlocked ? 1 : 0
+putConfidence += nearEmaPut ? 1 : 0
+putConfidence += putLevel ? 2 : 0
+putConfidence += bearReject ? 1 : 0
+putConfidence += (losePML or losePDL) ? 1 : 0
+
+callConfidenceText = callConfidence >= 7 ? "HIGH" : callConfidence >= 5 ? "MED" : "LOW"
+putConfidenceText  = putConfidence  >= 7 ? "HIGH" : putConfidence  >= 5 ? "MED" : "LOW"
+
+//====================================================
+// Cooldown
+//====================================================
+var int lastCallBar = na
+var int lastPutBar  = na
+
+callCooldownPass = na(lastCallBar) or (bar_index - lastCallBar > cooldownBars)
+putCooldownPass  = na(lastPutBar)  or (bar_index - lastPutBar  > cooldownBars)
+
+callSignal = showSignals and callSignalBase and callCooldownPass
+putSignal  = showSignals and putSignalBase and putCooldownPass
+
+freshCall = callSignal and not callSignal[1]
+freshPut  = putSignal and not putSignal[1]
+
+if freshCall
+    lastCallBar := bar_index
+if freshPut
+    lastPutBar := bar_index
+
+//====================================================
+// Signal markers - directly on associated candle
+//====================================================
+plotshape(freshCall, title="Call Signal", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(freshPut,  title="Put Signal",  style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)
+
+//====================================================
+// Confidence labels - directly above/below signal candle
+//====================================================
+if showConfidence and freshCall
     label.new(
-         bar_index,
-         low - syminfo.mintick * 12,
-         "?",
-         xloc=xloc.bar_index,
-         yloc=yloc.price,
+         bar_index, low - atrVal * confidenceOffset, callConfidenceText,
+         xloc=xloc.bar_index, yloc=yloc.price,
          style=label.style_label_up,
-         color=color.new(colCall, 20),
-         textcolor=color.black,
-         size=size.normal,
-         tooltip=reason
+         color=color.lime, textcolor=color.black, size=size.tiny
     )
 
-if freshPut and showReasons
-    string reason = (
-         rejectPDH ? "PUT: PDH rejection + bearish EMA + below VWAP" :
-         breakPDL ? "PUT: PDL breakdown + bearish EMA + below VWAP" :
-         breakPML ? "PUT: PML breakdown (secondary level)" :
-         emaPut ? "PUT: EMA13 rejection continuation" :
-         "PUT setup"
-    )
+if showConfidence and freshPut
     label.new(
-         bar_index,
-         high + syminfo.mintick * 12,
-         "?",
-         xloc=xloc.bar_index,
-         yloc=yloc.price,
+         bar_index, high + atrVal * confidenceOffset, putConfidenceText,
+         xloc=xloc.bar_index, yloc=yloc.price,
          style=label.style_label_down,
-         color=color.new(colPut, 20),
-         textcolor=color.white,
-         size=size.normal,
-         tooltip=reason
+         color=color.red, textcolor=color.white, size=size.tiny
+    )
+
+//====================================================
+// Reasons - directly above/below same candle
+//====================================================
+if showReasons and freshCall
+    string whyCall = callLevel ?
+         (bullBounce ? "Bounce off PML/PDL/ORL" :
+         reclaimPMH ? "Reclaim above PMH" :
+         reclaimPDH ? "Reclaim above PDH" :
+         "Level reaction")
+         :
+         "Trend pullback reclaim"
+
+    label.new(
+         bar_index, low - atrVal * reasonOffsetATR, "?",
+         xloc=xloc.bar_index, yloc=yloc.price,
+         style=label.style_label_up,
+         color=color.new(color.lime, 20), textcolor=color.black, size=size.tiny,
+         tooltip=whyCall + "\nConfidence: " + callConfidenceText
+    )
+
+if showReasons and freshPut
+    string whyPut = putLevel ?
+         (bearReject ? "Rejection off PMH/PDH/ORH" :
+         losePML ? "Lose below PML" :
+         losePDL ? "Lose below PDL" :
+         "Level failure")
+         :
+         "Trend pullback reject"
+
+    label.new(
+         bar_index, high + atrVal * reasonOffsetATR, "?",
+         xloc=xloc.bar_index, yloc=yloc.price,
+         style=label.style_label_down,
+         color=color.new(color.red, 20), textcolor=color.white, size=size.tiny,
+         tooltip=whyPut + "\nConfidence: " + putConfidenceText
     )
 
 //====================================================
 // Alerts
 //====================================================
-alertcondition(freshCall, title="Call Setup", message="Casey-style call setup")
-alertcondition(freshPut,  title="Put Setup",  message="Casey-style put setup")
+alertcondition(freshCall, title="Call Entry", message="Tomasino Winnah Pickah: CALL")
+alertcondition(freshPut,  title="Put Entry",  message="Tomasino Winnah Pickah: PUT")
